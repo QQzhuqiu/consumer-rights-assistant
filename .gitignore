@@ -1,0 +1,169 @@
+# =============================================================
+# 凭证明白 —— AI消费权益助手  .gitignore
+# 目标：默认不把密钥、个人信息、真实消费凭证、原始媒体素材提交进仓库
+# 本文件由初始化阶段创建，仅覆盖文档与目录阶段的实际需要
+# =============================================================
+
+# ---------- 依赖与构建产物（未来 Next.js 阶段使用） ----------
+node_modules/
+.pnpm-store/
+.pnp
+.pnp.*
+.yarn/cache/
+.yarn/unplugged/
+
+.next/
+out/
+dist/
+build/
+.turbo/
+.swc/
+*.tsbuildinfo
+next-env.d.ts
+
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+.vitest/
+
+# ---------- 环境变量与密钥 ----------
+# .env.example 必须可追踪，下一条否定规则放在通配规则之后
+.env
+.env.*
+!.env.example
+*.env
+!*.env.example
+
+# 常见凭据 / 私钥 / 证书
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+*.ppk
+.npmrc
+.pypirc
+.netrc
+.htpasswd
+secrets.json
+credentials.json
+service-account*.json
+
+# ---------- 本地数据库（SQLite 及其附属文件） ----------
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+prisma/dev.db*
+prisma/migrations/dev.db*
+
+# ---------- data/ 目录：本地数据、真实凭证、未来上传目录 ----------
+# 策略：data 内容默认不入库，只保留说明（README.md）与 .gitkeep
+/data/*
+!/data/README.md
+!/data/.gitkeep
+
+# 以后需要提交演示样例时：仅限明确标注的合成数据或脱敏样例，
+# 放入 data/samples/ 等单独目录，并在本文件末尾新增白名单规则，
+# 例如：!/data/samples/**   （提交前必须逐个人工检查）
+
+# ---------- evidence/ 目录：原始媒体与敏感记录 ----------
+# 策略：默认忽略原始素材；脱敏索引/规范/占位文件显式放行
+/evidence/screenshots/*
+!/evidence/screenshots/README.md
+!/evidence/screenshots/.gitkeep
+
+/evidence/recordings/*
+!/evidence/recordings/README.md
+!/evidence/recordings/.gitkeep
+
+/evidence/demo/*
+!/evidence/demo/README.md
+!/evidence/demo/.gitkeep
+
+# 常见图片/视频/音频格式一律忽略（任何位置出现都视为原始媒体）
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tif
+*.tiff
+*.webp
+*.heic
+*.svg
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.flv
+*.wmv
+*.mp3
+*.m4a
+*.wav
+*.aac
+*.flac
+*.ogg
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+
+# 原始对话导出（JSON/HTML/Markdown 导出文件）与可能含隐私的记录
+/evidence/**/raw/
+/evidence/**/原始/
+/evidence/**/*-raw.*
+/evidence/**/*-原始.*
+/evidence/ai-collaboration/*.zip
+
+# ---------- 临时文件、日志与系统缓存 ----------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.cache/
+.temp/
+.tmp/
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ---------- 编辑器与 IDE 本地配置 ----------
+.idea/
+.vscode/*
+!.vscode/settings.json.example
+*.code-workspace
+.history/
+
+# ---------- Python（脚本目录可能用到） ----------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
