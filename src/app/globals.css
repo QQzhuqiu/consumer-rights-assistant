@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/*
+ * 主题补充：仅声明本项目需要的少量设计变量与中文字体栈。
+ * 默认断点沿用 Tailwind v4 内置值（sm 640 / md 768 / lg 1024 / xl 1280 / 2xl 1536），
+ * 不做覆盖，以满足「桌面 ≥1024px 两列、窄屏 <768px 单列」的既定布局要求。
+ */
+@theme {
+  --font-sans:
+    "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Source Han Sans SC",
+    "Noto Sans CJK SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html {
+  /* 长中文段落与法规条文在窄屏下的断行更自然 */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  /* 避免窄屏出现横向滚动条 */
+  overflow-x: hidden;
+}
