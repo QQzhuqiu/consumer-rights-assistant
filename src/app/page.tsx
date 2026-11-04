@@ -1,3 +1,7 @@
+'use client';
+
+import { useCallback, useRef } from 'react';
+
 type PlaceholderCard = {
   /** 卡片标题 */
   title: string;
@@ -36,7 +40,60 @@ const PLACEHOLDER_CARDS: PlaceholderCard[] = [
   },
 ];
 
+/**
+ * 首页。
+ *
+ * 为什么需要 'use client'：
+ *   光晕需跟随鼠标在卡片内的位置。若用 React state 保存坐标，每次 pointermove 都会
+ *   触发重渲染，鼠标移动越频繁开销越大，反而破坏「丝滑」手感。因此这里改用
+ *   useRef 直接写入 CSS 自定义属性 --glow-x / --glow-y，浏览器只需重算该元素样式，
+ *   不产生任何 React 重渲染。
+ *
+ * 卡片本身仍然是**非交互静态占位**：没有点击行为、没有路由、没有上传、没有 API 调用。
+ */
 export default function HomePage() {
+  /** 每个卡片元素到其待处理 rAF 句柄的映射，用于 pointermove 合并节流 */
+  const rafIdsRef = useRef<Map<HTMLElement, number>>(new Map());
+
+  /**
+   * 处理卡片内的指针移动：把指针位置换算成百分比写入 CSS 变量。
+   * 使用 requestAnimationFrame 节流——同一帧内多次 pointermove 只写一次样式。
+   */
+  const handlePointerMove = useCallback((event: React.PointerEvent<HTMLLIElement>) => {
+    const element = event.currentTarget;
+    const pending = rafIdsRef.current.get(element);
+    // 同一帧内已有待处理任务则跳过，避免无谓的样式写入
+    if (pending !== undefined) return;
+
+    const { clientX, clientY } = event;
+
+    const rafId = requestAnimationFrame(() => {
+      rafIdsRef.current.delete(element);
+
+      const rect = element.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+
+      const x = ((clientX - rect.left) / rect.width) * 100;
+      const y = ((clientY - rect.top) / rect.height) * 100;
+
+      // 直接写 CSS 变量，绕开 React 渲染流程
+      element.style.setProperty('--glow-x', `${x.toFixed(2)}%`);
+      element.style.setProperty('--glow-y', `${y.toFixed(2)}%`);
+    });
+
+    rafIdsRef.current.set(element, rafId);
+  }, []);
+
+  /** 指针离开卡片时取消尚未执行的 rAF，避免移出后光晕位置被延迟更新 */
+  const handlePointerLeave = useCallback((event: React.PointerEvent<HTMLLIElement>) => {
+    const element = event.currentTarget;
+    const pending = rafIdsRef.current.get(element);
+    if (pending !== undefined) {
+      cancelAnimationFrame(pending);
+      rafIdsRef.current.delete(element);
+    }
+  }, []);
+
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
       {/* ---------- 页头：产品名称与简短说明 ---------- */}
@@ -105,7 +162,9 @@ export default function HomePage() {
           {PLACEHOLDER_CARDS.map((card) => (
             <li
               key={card.title}
-              className="flex flex-col rounded-lg border border-slate-200 bg-white p-4 sm:p-5"
+              className="card-surface flex flex-col rounded-lg border border-slate-200 bg-white p-4 sm:p-5"
+              onPointerMove={handlePointerMove}
+              onPointerLeave={handlePointerLeave}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-base font-semibold text-slate-900">

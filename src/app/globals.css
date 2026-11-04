@@ -9,6 +9,12 @@
   --font-sans:
     "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Source Han Sans SC",
     "Noto Sans CJK SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* 微交互缓动曲线（Q 弹但克制，无持续动画） */
+  /* 进入：轻微过冲后回落，产生「Q 弹」手感 */
+  --ease-spring-soft: cubic-bezier(0.34, 1.36, 0.64, 1);
+  /* 离开：无过冲，柔顺回落 */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html {
@@ -19,4 +25,96 @@ html {
 body {
   /* 避免窄屏出现横向滚动条 */
   overflow-x: hidden;
+}
+
+/* ==========================================================================
+ * 功能占位卡片的微交互
+ *
+ * 设计约束：
+ *   · 缩放不参与布局（transform），网格尺寸与卡片间距完全不变；
+ *   · 光晕使用伪元素 + pointer-events: none，不占位、不遮挡任何文字；
+ *   · 无 keyframes、无 animation、无持续动画；
+ *   · 悬停效果仅在支持精细指针的设备上启用（见下方 @media hover）；
+ *   · 用户要求减少动画时，关闭缩放、位移、光晕与过渡。
+ * ========================================================================== */
+
+.card-surface {
+  /* 为光晕伪元素建立独立层叠上下文，避免其落到页面背景之下 */
+  position: relative;
+  isolation: isolate;
+  /* 光晕跟随鼠标的位置，由 page.tsx 通过 pointermove 写入（默认居中） */
+  --glow-x: 50%;
+  --glow-y: 0%;
+  --glow-opacity: 0;
+
+  transition:
+    transform 380ms var(--ease-out-soft),
+    border-color 300ms var(--ease-out-soft),
+    box-shadow 380ms var(--ease-out-soft);
+}
+
+/*
+ * 光晕层：极低透明度的径向渐变，跟随 --glow-x / --glow-y。
+ * 用 -1px 内缩抵消 1px 边框，使光晕不溢出圆角之外。
+ */
+.card-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  opacity: var(--glow-opacity);
+  background: radial-gradient(
+    220px circle at var(--glow-x) var(--glow-y),
+    rgb(59 130 246 / 0.1),
+    rgb(59 130 246 / 0.05) 42%,
+    transparent 72%
+  );
+  transition: opacity 320ms var(--ease-out-soft);
+}
+
+/*
+ * 仅在「支持 hover 且为精细指针」的设备上启用悬停效果。
+ * 触屏设备（hover: none / pointer: coarse）保持完全静态，且不会出现移动端
+ * 点击后 hover 状态「粘住」的问题。
+ */
+@media (hover: hover) and (pointer: fine) {
+  .card-surface:hover,
+  .card-surface:focus-within {
+    transform: scale(1.025);
+    border-color: rgb(148 163 184 / 0.95); /* slate-400 */
+    box-shadow:
+      0 1px 2px rgb(15 23 42 / 0.04),
+      0 10px 28px -14px rgb(15 23 42 / 0.2);
+    /* 进入时使用带回弹的曲线 */
+    transition-timing-function: var(--ease-spring-soft);
+  }
+
+  .card-surface:hover {
+    --glow-opacity: 1;
+  }
+}
+
+/*
+ * 减少动画偏好：关闭缩放、位移、光晕与全部过渡。
+ * 卡片仍可读、边框与阴影不再变化，交互退化为完全静态。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .card-surface,
+  .card-surface::before {
+    transition: none;
+  }
+
+  .card-surface:hover,
+  .card-surface:focus-within {
+    transform: none;
+    box-shadow: none;
+    /* 仅保留一点边框变化作为可感知但不动的反馈 */
+    border-color: rgb(148 163 184 / 0.95);
+  }
+
+  .card-surface:hover {
+    --glow-opacity: 0;
+  }
 }
