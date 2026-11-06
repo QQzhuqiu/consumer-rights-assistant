@@ -2,6 +2,8 @@
 
 import { useCallback, useRef } from 'react';
 
+import EvidencePreview from './evidence-preview';
+
 type PlaceholderCard = {
   /** 卡片标题 */
   title: string;
@@ -138,6 +140,9 @@ export default function HomePage() {
         </ul>
       </section>
 
+      {/* ---------- 阶段四：凭证选择与本地预览 ---------- */}
+      <EvidencePreview />
+
       {/* ---------- 4 个静态占位卡片 ---------- */}
       <section aria-labelledby="cards-heading" className="mt-8">
         <h2
@@ -191,8 +196,8 @@ export default function HomePage() {
       {/* ---------- 页脚 ---------- */}
       <footer className="mt-10 border-t border-slate-200 pt-6 text-xs leading-relaxed text-slate-500">
         <p>
-          当前为界面骨架阶段：没有任何上传、识别、数据库、检索或材料生成功能，
-          页面也不会向任何服务发送数据。
+          当前没有任何上传、识别、数据库、检索或材料生成功能；凭证文件仅在你的浏览器内
+          预览，页面不会向任何服务发送数据。
         </p>
         <p className="mt-2">输出仅供参考，不构成法律意见，也不能替代律师或其他专业人士的建议。</p>
       </footer>
