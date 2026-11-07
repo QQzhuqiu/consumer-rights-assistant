@@ -1,7 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  generateAnalysisInput,
+  type AnalysisBlocker,
+  type BlockingReason,
+} from '@/lib/analysis-input';
 import {
   EVIDENCE_FIXTURE,
   createInitialFields,
@@ -128,6 +133,39 @@ function confidenceBadgeClass(field: ExtractedField): string {
 }
 
 /**
+ * 阻塞原因 → 面向用户的中文说明。
+ *
+ * 刻意不使用「不合法」「错误」这类措辞：字段没确认只是**流程还没走完**，
+ * 不是用户填错了什么。
+ */
+function blockerText(reason: BlockingReason): string {
+  switch (reason) {
+    case 'MISSING_FIELD':
+      return '该字段不在当前数据中';
+    case 'NOT_CONFIRMED':
+      return '尚未确认（即使已有值也不作为确定事实）';
+    case 'CONFIRMED_NULL':
+      return '已确认该字段未知，缺少必需信息';
+    case 'EMPTY_VALUE':
+      return '已确认但内容为空，没有可用值';
+  }
+}
+
+/** 阻塞原因 → 徽标配色。同时始终给出文本，不只依赖颜色。 */
+function blockerClass(reason: BlockingReason): string {
+  switch (reason) {
+    case 'MISSING_FIELD':
+      return 'border-red-300 bg-red-50 text-red-900';
+    case 'NOT_CONFIRMED':
+      return 'border-amber-300 bg-amber-50 text-amber-900';
+    case 'CONFIRMED_NULL':
+      return 'border-orange-300 bg-orange-50 text-orange-900';
+    case 'EMPTY_VALUE':
+      return 'border-slate-300 bg-slate-100 text-slate-700';
+  }
+}
+
+/**
  * 焦点目标。用描述式标识而非 DOM 查询，配合 ref 定位，
  * 不依赖 `document.querySelector`，也不使用键盘快捷键。
  */
@@ -142,11 +180,19 @@ export default function ExtractionReview() {
 
   /** 字段状态。初始值与「重置为样例」都通过 createInitialFields() 取得全新副本。 */
   const [fields, setFields] = useState<ExtractedField[]>(() => createInitialFields());
-
   /** 当前处于编辑态的字段 key；同一时间只编辑一个字段。 */
   const [editingKey, setEditingKey] = useState<string | null>(null);
   /** 编辑态下的草稿文本。取消编辑时直接丢弃，不影响字段状态。 */
   const [draftValue, setDraftValue] = useState('');
+
+  /**
+   * 分析输入预览。
+   *
+   * **由当前 `fields` 派生**（useMemo 依赖 fields），因此每次确认 / 撤销确认 /
+   * 编辑保存 / 重置都会重新计算，不会留下一份过期的旧结果。
+   * 纯函数、不产生副作用、不发请求。
+   */
+  const analysisInput = useMemo(() => generateAnalysisInput(fields), [fields]);
 
   /** 一次性的待处理焦点请求。在条件渲染提交之后由 effect 消费。 */
   const [focusRequest, setFocusRequest] = useState<{
@@ -679,6 +725,185 @@ export default function ExtractionReview() {
         恢复后回到"未知"状态，不会伪造样例值。
         本页不使用任何持久化存储：刷新页面后会恢复初始样例，编辑与确认状态随之清除。
       </p>
+
+      {/* ==================================================================
+          分析输入预览（阶段 4.2d 前置）
+          ------------------------------------------------------------------
+          完全由当前 fields 派生，复用上方的编辑与确认结果，不另建一套编辑 UI。
+          这里只做「已确认输入」的完整性检查与展示：
+            · 不生成任何法律结论、权益判断或条款引用；
+            · 不发起任何网络请求。
+         ================================================================== */}
+      <section
+        aria-labelledby="analysis-input-heading"
+        className="mt-6 border-t-2 border-slate-200 pt-4"
+      >
+        <h3
+          id="analysis-input-heading"
+          className="text-sm font-semibold text-slate-900 sm:text-base"
+        >
+          分析输入预览（本地 fixture 演示）
+        </h3>
+
+        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+          这里只展示<strong className="font-semibold">已确认输入</strong>的整理结果，<strong className="font-semibold">不生成法律结论</strong>、
+          <strong className="font-semibold">不发送网络请求</strong>。
+          内容来自上方固定样例与你当前的确认操作，既不是真实用户案件，也不是真实识别结果。
+        </p>
+
+        {/* ---------- 就绪状态总览 ---------- */}
+        <div
+          role="status"
+          className={`mt-3 rounded-md border px-3 py-2 text-sm leading-relaxed ${
+            analysisInput.ready
+              ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+              : 'border-amber-300 bg-amber-50 text-amber-900'
+          }`}
+        >
+          <p className="font-semibold">
+            {analysisInput.ready
+              ? '基础输入门槛已满足（本阶段仅检查字段完整性）'
+              : `尚未就绪：${analysisInput.blockers.length} 项必需信息待处理`}
+          </p>
+          <p className="mt-1 text-xs">
+            必需字段：
+            {analysisInput.requiredKeys
+              .map((key) => FIELD_LABELS[key])
+              .join(' / ')}
+            。这只是本阶段的分析输入门槛，不是法律判断规则，也不代表这几个字段足以得出任何法律结论。
+          </p>
+        </div>
+
+        {/* ---------- 未就绪：阻塞原因 ---------- */}
+        {!analysisInput.ready && (
+          <div className="mt-3">
+            <p className="text-xs font-medium text-slate-600">阻塞原因</p>
+            <ul className="mt-2 space-y-2">
+              {analysisInput.blockers.map((blocker: AnalysisBlocker) => (
+                <li
+                  key={blocker.key}
+                  className="rounded-md border border-slate-200 p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-900">
+                      {blocker.label}
+                    </span>
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${blockerClass(
+                        blocker.reason,
+                      )}`}
+                    >
+                      {blockerText(blocker.reason)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    来源：
+                    {blocker.source === null
+                      ? '无（字段缺失）'
+                      : SOURCE_LABELS[blocker.source]}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* ---------- 就绪：分析输入字段 ---------- */}
+        {analysisInput.ready && (
+          <div className="mt-3">
+            <p className="text-xs font-medium text-slate-600">
+              已纳入分析输入（{analysisInput.confirmedFields.length} 个字段）
+            </p>
+            <dl className="mt-2 space-y-2">
+              {analysisInput.confirmedFields.map((field) => (
+                <div
+                  key={field.key}
+                  className="rounded-md border border-slate-200 p-3"
+                >
+                  <dt className="text-sm font-semibold text-slate-900">
+                    {field.label}
+                    <span className="ml-2 text-xs font-normal text-slate-400">
+                      {field.key}
+                    </span>
+                  </dt>
+                  <dd className="mt-1 text-sm text-slate-800">
+                    <span
+                      className={
+                        field.key === 'orderId' ? 'break-all' : 'break-words'
+                      }
+                    >
+                      {field.value}
+                    </span>
+                  </dd>
+                  <dd className="mt-1 text-xs text-slate-500">
+                    来源：{SOURCE_LABELS[field.source]} ・ 状态：已确认
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
+        {/* ---------- 已确认的未知字段（与「未确认」分开呈现） ---------- */}
+        {analysisInput.confirmedUnknown.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-medium text-slate-600">
+              已确认未知（{analysisInput.confirmedUnknown.length} 个字段）
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              这些字段由你明确确认为「不知道」，保留为待查缺口，<strong className="font-semibold">不会补造任何值</strong>。
+            </p>
+            <ul className="mt-2 space-y-1">
+              {analysisInput.confirmedUnknown.map((field) => (
+                <li
+                  key={field.key}
+                  className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-600"
+                >
+                  <span className="font-medium text-slate-800">{field.label}</span>
+                  <span className="ml-2">未提供</span>
+                  <span className="ml-2">来源：{SOURCE_LABELS[field.source]}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* ---------- 未确认字段（不作为确定事实） ---------- */}
+        {analysisInput.unresolved.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-medium text-slate-600">
+              未纳入确定事实（{analysisInput.unresolved.length} 个字段）
+            </p>
+            <ul className="mt-2 space-y-1">
+              {analysisInput.unresolved.map((field) => (
+                <li
+                  key={field.key}
+                  className="rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-600"
+                >
+                  <span className="font-medium text-slate-800">{field.label}</span>
+                  <span className="ml-2">
+                    {field.reason === 'NOT_CONFIRMED'
+                      ? '未确认'
+                      : '已确认但内容为空'}
+                  </span>
+                  {field.value !== null && (
+                    <span className="ml-2 break-all">
+                      当前值：{field.value}
+                    </span>
+                  )}
+                  <span className="ml-2">来源：{SOURCE_LABELS[field.source]}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <p className="mt-3 text-xs leading-relaxed text-slate-500">
+          本预览每次确认、撤销确认、保存编辑或重置都会重新计算，始终对应上面当前的字段状态；
+          它不写入任何存储，也不把数据交给任何接口。以上内容只是输入整理结果，
+          <strong className="font-semibold">不是权益分析结论</strong>。
+        </p>
+      </section>
 
       <p className="mt-2 text-xs leading-relaxed text-slate-500">
         <span className="font-medium text-slate-600">字段范围：</span>
