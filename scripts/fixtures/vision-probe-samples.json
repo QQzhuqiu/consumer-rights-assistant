@@ -1,0 +1,50 @@
+{
+  "_comment": "阶段 4.2b 合成凭证样例定义（唯一事实来源）。图片生成脚本读取本文件生成 PNG，期望字段文件 vision-probe-expected.json 亦由本文件派生。所有内容均为人为合成，不含真实凭证、商户、个人信息或订单。",
+  "_notForModelRequest": "本文件与 vision-probe-expected.json 仅供本地生成与校验使用。未来的模型请求构造器不得读取或发送本文件，以免把答案泄漏进请求。",
+  "samples": [
+    {
+      "id": "complete",
+      "imageFile": "complete.png",
+      "description": "完整凭证：五个字段齐全",
+      "print": {
+        "title": "合成测试凭证 · 非真实交易",
+        "rows": [
+          { "label": "商家", "value": "合成测试商城" },
+          { "label": "商品", "value": "演示耳机 Pro" },
+          { "label": "金额", "value": "CNY 199.00" },
+          { "label": "交易日期", "value": "2026-10-15" },
+          { "label": "订单号", "value": "SYNTH-20261015-001" }
+        ],
+        "footer": null
+      },
+      "expected": {
+        "merchantName": "合成测试商城",
+        "itemName": "演示耳机 Pro",
+        "amount": "199.00",
+        "transactionDate": "2026-10-15",
+        "orderId": "SYNTH-20261015-001"
+      }
+    },
+    {
+      "id": "missing-fields",
+      "imageFile": "missing-fields.png",
+      "description": "缺失凭证：不印刷交易日期与订单号",
+      "print": {
+        "title": "合成测试凭证 · 非真实交易",
+        "rows": [
+          { "label": "商家", "value": "合成测试便利店" },
+          { "label": "商品", "value": "演示饮料 500ml" },
+          { "label": "金额", "value": "CNY 5.50" }
+        ],
+        "footer": null
+      },
+      "expected": {
+        "merchantName": "合成测试便利店",
+        "itemName": "演示饮料 500ml",
+        "amount": "5.50",
+        "transactionDate": null,
+        "orderId": null
+      }
+    }
+  ]
+}

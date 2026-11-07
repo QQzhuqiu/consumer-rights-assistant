@@ -1,0 +1,25 @@
+{
+  "_comment": "阶段 4.2b 合成凭证的期望字段（离线校验基准）。由 scripts/fixtures/vision-probe-samples.json 派生，供 validate-vision-result.mjs 比对使用。",
+  "_warning": "本文件是人为构造的期望值，不是任何模型的识别结果。不要把 mock 的字段匹配率当成模型准确率。",
+  "_isolation": "未来的模型请求构造器不得读取本文件，也不得把其中的值发送给任何服务。期望答案与请求内容必须完全隔离。",
+  "samples": [
+    {
+      "id": "complete",
+      "imageFile": "complete.png",
+      "merchantName": "合成测试商城",
+      "itemName": "演示耳机 Pro",
+      "amount": "199.00",
+      "transactionDate": "2026-10-15",
+      "orderId": "SYNTH-20261015-001"
+    },
+    {
+      "id": "missing-fields",
+      "imageFile": "missing-fields.png",
+      "merchantName": "合成测试便利店",
+      "itemName": "演示饮料 500ml",
+      "amount": "5.50",
+      "transactionDate": null,
+      "orderId": null
+    }
+  ]
+}

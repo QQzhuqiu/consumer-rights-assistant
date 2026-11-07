@@ -1,0 +1,8 @@
+{
+  "merchantName": "合成测试商城",
+  "itemName": "演示耳机 Pro",
+  "amount": 199.0,
+  "transactionDate": "2026-10-15",
+  "orderId": true,
+  "confidence": "high"
+}
