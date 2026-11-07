@@ -118,3 +118,71 @@ body {
     --glow-opacity: 0;
   }
 }
+
+/* ==========================================================================
+ * 核对区操作按钮的微交互（阶段 4.2a）
+ *
+ * 仅用于 extraction-review.tsx 中的按钮，**不影响**上方 .card-surface 卡片样式。
+ * 设计约束：
+ *   · 只动 transform 与 box-shadow，不改变 margin/尺寸，文档流不跳动；
+ *   · 底色与边框由各按钮自身的 Tailwind 类提供，本类不再覆盖，避免互相打架；
+ *   · 悬停反馈仅在支持精细指针的设备上启用，触屏不出现「粘住」的 hover 态；
+ *   · 无 keyframes、无 animation、无 will-change、无持续动画；
+ *   · 不复用首页的 pointermove / requestAnimationFrame / radial-gradient 光晕；
+ *   · 用户要求减少动画时，关闭缩放、阴影与过渡；
+ *   · 过渡时长统一在下方 --field-action-duration，按下时单独缩短，保证手感干脆。
+ * ========================================================================== */
+
+.field-action-button {
+  /* 统一时长与缓动：进入/退出同一节奏，避免移出时拖沓 */
+  --field-action-duration: 140ms;
+  --field-action-press-duration: 70ms;
+
+  transition:
+    transform var(--field-action-duration) var(--ease-out-soft),
+    box-shadow var(--field-action-duration) var(--ease-out-soft),
+    background-color var(--field-action-duration) var(--ease-out-soft),
+    border-color var(--field-action-duration) var(--ease-out-soft);
+}
+
+/* 键盘焦点：无论何种指针设备都必须清晰可见 */
+.field-action-button:focus-visible {
+  outline: 2px solid rgb(37 99 235); /* blue-600 */
+  outline-offset: 2px;
+}
+
+/* 仅在「支持 hover 且为精细指针」的设备上启用悬停与按下反馈 */
+@media (hover: hover) and (pointer: fine) {
+  .field-action-button:not(:disabled):hover {
+    /* 缩放保持克制；主要反馈交给背景、边框与阴影 */
+    transform: scale(1.01);
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.12);
+  }
+
+  .field-action-button:not(:disabled):active {
+    /* 轻压 + 更短的过渡，按下即刻响应，不像"慢慢缩回去" */
+    transform: scale(0.99);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+    transition-duration: var(--field-action-press-duration);
+  }
+}
+
+/* 禁用态：不产生误导性的悬停或缩放反馈 */
+.field-action-button:disabled {
+  transform: none;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* 减少动画偏好：关闭缩放、阴影与全部过渡，颜色变化也不过渡 */
+@media (prefers-reduced-motion: reduce) {
+  .field-action-button {
+    transition: none;
+  }
+
+  .field-action-button:not(:disabled):hover,
+  .field-action-button:not(:disabled):active {
+    transform: none;
+    box-shadow: none;
+  }
+}

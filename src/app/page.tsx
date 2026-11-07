@@ -3,6 +3,7 @@
 import { useCallback, useRef } from 'react';
 
 import EvidencePreview from './evidence-preview';
+import ExtractionReview from './extraction-review';
 
 type PlaceholderCard = {
   /** 卡片标题 */
@@ -142,6 +143,9 @@ export default function HomePage() {
 
       {/* ---------- 阶段四：凭证选择与本地预览 ---------- */}
       <EvidencePreview />
+
+      {/* ---------- 阶段 4.2a：识别结果核对（固定样例，未调用模型） ---------- */}
+      <ExtractionReview />
 
       {/* ---------- 4 个静态占位卡片 ---------- */}
       <section aria-labelledby="cards-heading" className="mt-8">
