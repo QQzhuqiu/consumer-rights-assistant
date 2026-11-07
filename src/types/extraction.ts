@@ -8,9 +8,13 @@
  *
  * 核心设计意图：**必须能区分数据来源**。
  *   · `'fixture'`      —— 界面演示用的固定样例，**不是**模型输出；
+ *   · `'mock'`         —— 本地 mock 契约注入的测试载荷，**未经任何模型识别**；
  *   · `'model'`        —— 真实视觉模型识别结果（本阶段**不会产生**该值，仅为类型预留）；
  *   · `'user'`         —— 用户手动修改或手动标记为未知；
  *   · `'unconfirmed'`  —— 尚未确定来源。
+ *
+ * `'mock'` 与 `'model'` 必须严格区分：mock 数据只是为了让下游先固定契约形状，
+ * 在真正接入模型之前，任何界面都不得把它展示成真实模型识别结果。
  *
  * 任何界面都不得把 `'fixture'` 的数据展示成真实识别结果。
  */
@@ -19,7 +23,7 @@
 export type FieldConfidence = 'high' | 'medium' | 'low' | 'unknown';
 
 /** 字段数据来源。 */
-export type FieldSource = 'fixture' | 'model' | 'user' | 'unconfirmed';
+export type FieldSource = 'fixture' | 'mock' | 'model' | 'user' | 'unconfirmed';
 
 /** 第一版支持的 5 个字段。不扩展其他字段。 */
 export type ExtractionFieldKey =
@@ -71,9 +75,10 @@ export const CONFIDENCE_LABELS: Record<FieldConfidence, string> = {
   unknown: '无法判断/未识别',
 };
 
-/** 来源 → 中文说明。明确区分固定样例与真实模型输出。 */
+/** 来源 → 中文说明。明确区分固定样例、mock 测试载荷与真实模型输出。 */
 export const SOURCE_LABELS: Record<FieldSource, string> = {
   fixture: '固定样例数据',
+  mock: 'mock 测试数据（未调用模型）',
   model: '模型识别结果',
   user: '用户修改',
   unconfirmed: '来源未定',
