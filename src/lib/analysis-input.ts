@@ -230,3 +230,75 @@ export function generateAnalysisInput(
     blockers,
   };
 }
+
+/**
+ * 本阶段的可选字段。
+ *
+ * 「可选」只表示**它们不参与 `ready` 判定**，不表示它们不重要：
+ * 缺少这些信息会降低后续分析的完整度，所以单独给出提示。
+ */
+export const OPTIONAL_ANALYSIS_FIELD_KEYS = [
+  'transactionDate',
+  'orderId',
+  'itemName',
+] as const satisfies readonly ExtractionFieldKey[];
+
+/**
+ * 生成**可选字段**的输入提示。
+ *
+ * ============================================================================
+ * 这个函数不做的事
+ * ============================================================================
+ *   · **不改变 `ready`**——可选字段永远不参与就绪判定；
+ *   · **不往 `blockers` 里加任何东西**——可选字段缺失不是阻塞项；
+ *   · **不修改入参 `result`**，也不修改任何字段值（纯函数）；
+ *   · **不生成任何法律判断**——提示只是「输入信息提示」，
+ *     与法律结论、权益判断、投诉或赔偿建议无关。
+ *
+ * ============================================================================
+ * 对每个可选字段的三种提示
+ * ============================================================================
+ *   1. 已确认且有值      → **不生成提示**（信息已经齐全）；
+ *   2. 已确认且为 null   → 「已确认未知，后续分析将不包含该信息」；
+ *   3. 未确认（含缺失）  → 「尚未确认，可能影响后续分析准确性」。
+ *
+ * 边界说明：已确认但值为空白的可选字段（`EMPTY_VALUE`），下游同样拿不到可用值，
+ * 因此按第 2 类给出「已确认未知」提示；**但不会把空串改写成 `null`**，
+ * 字段状态本身保持不变。
+ */
+export function getOptionalFieldHints(result: AnalysisInputResult): string[] {
+  /** 已确认且有值的可选字段：无需提示。 */
+  const withValue = new Set<ExtractionFieldKey>(
+    result.confirmedFields.map((field) => field.key),
+  );
+  /** 已确认但为 null 的可选字段。 */
+  const confirmedUnknownKeys = new Set<ExtractionFieldKey>(
+    result.confirmedUnknown.map((field) => field.key),
+  );
+  /** 已确认但值为空白的可选字段：同样拿不到可用值。 */
+  const emptyValueKeys = new Set<ExtractionFieldKey>(
+    result.unresolved
+      .filter((field) => field.reason === 'EMPTY_VALUE')
+      .map((field) => field.key),
+  );
+
+  const hints: string[] = [];
+
+  for (const key of OPTIONAL_ANALYSIS_FIELD_KEYS) {
+    // 标签统一取自 FIELD_LABELS，不在这里重复定义
+    const label = FIELD_LABELS[key];
+
+    if (withValue.has(key)) {
+      continue;
+    }
+
+    if (confirmedUnknownKeys.has(key) || emptyValueKeys.has(key)) {
+      hints.push(`${label}已确认未知，后续分析将不包含该信息`);
+      continue;
+    }
+
+    hints.push(`${label}尚未确认，可能影响后续分析准确性`);
+  }
+
+  return hints;
+}

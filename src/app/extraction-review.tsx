@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   generateAnalysisInput,
+  getOptionalFieldHints,
   type AnalysisBlocker,
   type BlockingReason,
 } from '@/lib/analysis-input';
@@ -193,6 +194,17 @@ export default function ExtractionReview() {
    * 纯函数、不产生副作用、不发请求。
    */
   const analysisInput = useMemo(() => generateAnalysisInput(fields), [fields]);
+
+  /**
+   * 可选信息提示。
+   *
+   * 同样由当前分析输入派生——可选字段永远不参与 `ready` 判定，
+   * 这里只是把「哪些信息还缺」提示出来，不影响就绪状态。
+   */
+  const optionalHints = useMemo(
+    () => getOptionalFieldHints(analysisInput),
+    [analysisInput],
+  );
 
   /** 一次性的待处理焦点请求。在条件渲染提交之后由 effect 消费。 */
   const [focusRequest, setFocusRequest] = useState<{
@@ -895,6 +907,27 @@ export default function ExtractionReview() {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* ---------- 可选信息提示（不影响就绪状态） ---------- */}
+        {optionalHints.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-medium text-slate-600">可选信息提示</p>
+            <ul className="mt-2 space-y-1">
+              {optionalHints.map((hint) => (
+                <li
+                  key={hint}
+                  className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-700"
+                >
+                  {hint}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              这些只是<strong className="font-semibold">输入完整性提示</strong>：可选字段不参与就绪判定，也不构成阻塞。
+              本区域仍是本地 fixture 演示，不生成法律结论、不发送网络请求。
+            </p>
           </div>
         )}
 
