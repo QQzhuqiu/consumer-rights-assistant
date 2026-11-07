@@ -103,7 +103,22 @@ export type AnalysisBlocker = {
 
 /** 生成结果。 */
 export type AnalysisInputResult = {
-  /** 所有必需字段都已确认且有可用值时为 true。 */
+  /**
+   * 所有必需字段都已确认且有可用值时为 true。
+   *
+   * ==========================================================================
+   * `ready: true` **只**表示：输入达到了「下一步离线规则分析」所需的最低完整度。
+   * ==========================================================================
+   * 它**不**表示、也**不**暗示以下任何一项：
+   *   · 不表示权益成立；
+   *   · 不表示商家违法；
+   *   · 不表示用户一定有权退款或赔偿；
+   *   · 不表示投诉成功；
+   *   · 不表示应该起诉；
+   *   · 不表示字段值的真实性或合法性已经确认。
+   *
+   * 换言之，`ready` 是一个**输入收集进度**信号，不是任何形式的结论。
+   */
   ready: boolean;
   /** 本阶段视为必需的字段清单（只读）。 */
   requiredKeys: readonly ExtractionFieldKey[];
@@ -298,6 +313,127 @@ export function getOptionalFieldHints(result: AnalysisInputResult): string[] {
     }
 
     hints.push(`${label}尚未确认，可能影响后续分析准确性`);
+  }
+
+  return hints;
+}
+
+/* ============================================================================
+ * 材料补充建议（离线事实整理）
+ * ============================================================================
+ * 这一节把「当前输入有哪些缺口」整理成中性提示，**只做事实整理**：
+ *   · 不判断权益是否成立、不判断商家是否违法；
+ *   · 不给出投诉方案、赔偿建议、维权策略或诉讼意见；
+ *   · 不评估证据强弱，也不把 `confidence` 当作证据强度；
+ *   · 不把 `source` 转换成任何法律依据；
+ *   · 不补造、不推断、不改写任何字段值。
+ *
+ * ============================================================================
+ * 职责划分：只覆盖**必需字段**与**材料保留**
+ * ============================================================================
+ * 本函数**不管可选字段**——可选字段的未确认 / 已确认未知状态由
+ * `getOptionalFieldHints` 在「可选信息提示」区块统一呈现。
+ * 两边各说一遍会造成同义重复，所以这里刻意不遍历
+ * `OPTIONAL_ANALYSIS_FIELD_KEYS`，也不产出 `OPTIONAL_SUGGESTED`。
+ *
+ * 因此本函数的输出只有两类：
+ *   1. 必需字段的补充 / 确认提示（来自 `blockers`，按其原有顺序）；
+ *   2. `ready === true` 时的原始材料保留提醒。
+ *
+ * 提示顺序稳定：先 `blockers` 原序，最后证据保全。
+ */
+
+/** 材料提示的分类。仅用于组织展示，不含任何判断含义。 */
+export type MaterialHintCategory =
+  /** 必需字段缺失 / 已确认为未知 / 已确认但内容为空。 */
+  | 'REQUIRED_MISSING'
+  /** 必需字段尚未确认。 */
+  | 'REQUIRED_UNCONFIRMED'
+  /**
+   * 可选字段的补充建议。
+   *
+   * **当前不产出**：可选字段状态统一由 `getOptionalFieldHints` 呈现，
+   * 以免与「可选信息提示」区块重复。保留此分类仅用于未来扩展。
+   */
+  | 'OPTIONAL_SUGGESTED'
+  /** 输入已达最低完整度时，提醒保留原始材料。 */
+  | 'EVIDENCE_PRESERVATION';
+
+/** 一条材料补充建议。 */
+export type MaterialHint = {
+  category: MaterialHintCategory;
+  /** 面向用户的中性文案：只说「缺什么 / 建议补什么」，不下结论。 */
+  text: string;
+  /** 关联字段；仅用于数据结构，UI 不必展示内部 key。 */
+  relatedField?: ExtractionFieldKey;
+};
+
+/**
+ * 根据当前分析输入生成**材料补充建议**。
+ *
+ * 纯函数：不修改入参 `result`、无副作用、无 React 依赖、无网络、无存储。
+ * **不改变 `ready`，也不改变 `blockers`**——它只是把已有信息换个说法提醒用户。
+ */
+export function generateMaterialHints(
+  result: AnalysisInputResult,
+): MaterialHint[] {
+  const hints: MaterialHint[] = [];
+
+  // ---------- 1. 必需字段阻塞（复用 result.blockers，不重新判定） ----------
+  for (const blocker of result.blockers) {
+    switch (blocker.reason) {
+      case 'MISSING_FIELD':
+        hints.push({
+          category: 'REQUIRED_MISSING',
+          text: `请补充${blocker.label}信息`,
+          relatedField: blocker.key,
+        });
+        break;
+      case 'NOT_CONFIRMED':
+        hints.push({
+          category: 'REQUIRED_UNCONFIRMED',
+          text: `请确认${blocker.label}是否准确`,
+          relatedField: blocker.key,
+        });
+        break;
+      case 'CONFIRMED_NULL':
+        hints.push({
+          category: 'REQUIRED_MISSING',
+          text: `${blocker.label}为必需信息，请尽量提供`,
+          relatedField: blocker.key,
+        });
+        break;
+      case 'EMPTY_VALUE':
+        // 归入缺信息，用中性措辞；不把空串改写成 null
+        hints.push({
+          category: 'REQUIRED_MISSING',
+          text: `请补充${blocker.label}信息`,
+          relatedField: blocker.key,
+        });
+        break;
+    }
+  }
+
+  // ---------- 2. 可选字段：**不在此处生成提示** ----------
+  //
+  // 职责划分（避免同一件事在两个区块各说一遍）：
+  //   · 「可选信息提示」（`getOptionalFieldHints`）负责展示可选字段的
+  //     未确认 / 已确认未知状态；
+  //   · 「材料补充建议」（本函数）只负责**必需字段**的补充与确认，
+  //     以及就绪后的原始材料保留提醒。
+  //
+  // 因此这里**不遍历** `OPTIONAL_ANALYSIS_FIELD_KEYS`，也不生成
+  // `OPTIONAL_SUGGESTED`。该分类保留在类型中，仅用于未来扩展，
+  // 当前函数不会产出它。
+  //
+  // 注意：可选字段**从不**进入 `blockers`，也不影响 `ready`。
+
+  // ---------- 3. 证据保全：仅在输入达到最低完整度时提示 ----------
+  if (result.ready) {
+    hints.push({
+      category: 'EVIDENCE_PRESERVATION',
+      text: '建议保留付款凭证、商家沟通记录等原始材料',
+    });
   }
 
   return hints;

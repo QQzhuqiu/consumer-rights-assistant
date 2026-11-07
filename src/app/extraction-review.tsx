@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   generateAnalysisInput,
+  generateMaterialHints,
   getOptionalFieldHints,
   type AnalysisBlocker,
   type BlockingReason,
@@ -203,6 +204,21 @@ export default function ExtractionReview() {
    */
   const optionalHints = useMemo(
     () => getOptionalFieldHints(analysisInput),
+    [analysisInput],
+  );
+
+  /**
+   * 材料补充建议。
+   *
+   * 基于同一个 `analysisInput` 派生，只整理**必需字段**的补充/确认缺口，
+   * 以及在就绪时提醒保留原始材料。
+   *
+   * **不覆盖可选字段**：可选字段的未确认 / 已确认未知状态由上方
+   * `optionalHints` 在「可选信息提示」区块统一呈现，避免同一件事说两遍。
+   * 不改变 `ready` 与 `blockers`，也不产生任何权益或法律判断。
+   */
+  const materialHints = useMemo(
+    () => generateMaterialHints(analysisInput),
     [analysisInput],
   );
 
@@ -927,6 +943,28 @@ export default function ExtractionReview() {
             <p className="mt-1 text-xs leading-relaxed text-slate-500">
               这些只是<strong className="font-semibold">输入完整性提示</strong>：可选字段不参与就绪判定，也不构成阻塞。
               本区域仍是本地 fixture 演示，不生成法律结论、不发送网络请求。
+            </p>
+          </div>
+        )}
+
+        {/* ---------- 材料补充建议（只覆盖必需字段与材料保留，非权益判断） ---------- */}
+        {materialHints.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-medium text-slate-600">材料补充建议</p>
+            <ul className="mt-2 space-y-1">
+              {materialHints.map((hint) => (
+                <li
+                  key={`${hint.category}-${hint.relatedField ?? hint.text}`}
+                  className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs leading-relaxed text-slate-700"
+                >
+                  {hint.text}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              以上只针对<strong className="font-semibold">必需字段</strong>的补充与确认，
+              以及原始材料的保留提醒；不判断权益是否成立，也不构成投诉或诉讼建议。
+              可选字段的状态请看上方「可选信息提示」。
             </p>
           </div>
         )}
