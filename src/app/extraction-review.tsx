@@ -542,8 +542,8 @@ export default function ExtractionReview() {
         {fields.length} 个字段
       </p>
 
-      {/* ---------- 字段列表 ---------- */}
-      <ul className="mt-3 space-y-3">
+      {/* ---------- 字段列表（响应式：窄屏单列，md 起双列） ---------- */}
+      <ul className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
         {fields.map((field) => {
           const isEditing = editingKey === field.key;
           const isUnknownValue = field.value === null;
@@ -552,7 +552,7 @@ export default function ExtractionReview() {
           return (
             <li
               key={field.key}
-              className="rounded-md border border-slate-200 p-3 sm:p-4"
+              className="min-w-0 rounded-md border border-slate-200 p-3 sm:p-4"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
