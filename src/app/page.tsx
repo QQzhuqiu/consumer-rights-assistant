@@ -9,6 +9,8 @@ import { EMPTY_USER_CASE_CONTEXT } from '@/types/user-case';
 
 import EvidencePreview from './evidence-preview';
 import ExtractionReview from './extraction-review';
+import FactTimeline from './fact-timeline';
+import MaterialChecklist from './material-checklist';
 import MockExtractionPreview from './mock-extraction-preview';
 import OfflineAnalysisPreparation from './offline-analysis-preparation';
 import UserCaseContextSection from './user-case-context';
@@ -204,6 +206,25 @@ export default function HomePage() {
           · 不发请求、不调模型、不上传、不持久化、不生成权益或法律结论。
       */}
       <OfflineAnalysisPreparation fields={fields} userContext={userContext} />
+
+      {/*
+        ---------- 阶段 6：事实时间线（本地整理） ----------
+        只读消费者，不持有 state、不写回任何东西：
+          · 读取上面两处已提升到页面的**同一份** state，不复制、不留快照；
+          · 只按已有输入罗列条目，不推断日期、不推断事件先后；
+          · 不进入 AnalysisInputResult，不影响 ready / blockers；
+          · 不发请求、不调模型、不上传、不持久化、不生成法律结论。
+      */}
+      <FactTimeline fields={fields} userContext={userContext} />
+
+      {/*
+        ---------- 阶段 6：材料记录清单（本地整理） ----------
+        同样只读同一份 userContext：
+          · 只按用户填写的原文做保守关键词匹配，不判断材料效力；
+          · 「已记录」勾选是本组件的本地 state，不持久化，刷新即清空；
+          · 不发请求、不上传、不调模型、不写存储。
+      */}
+      <MaterialChecklist userContext={userContext} />
 
       {/*
         ---------- 阶段 4.2c-2：本地 mock 识别 ----------
