@@ -5,6 +5,7 @@ import { useCallback, useRef } from 'react';
 import EvidencePreview from './evidence-preview';
 import ExtractionReview from './extraction-review';
 import MockExtractionPreview from './mock-extraction-preview';
+import UserCaseContextSection from './user-case-context';
 
 type PlaceholderCard = {
   /** 卡片标题 */
@@ -147,6 +148,16 @@ export default function HomePage() {
 
       {/* ---------- 阶段 4.2a：fixture 样例核对（固定样例，未调用模型） ---------- */}
       <ExtractionReview />
+
+      {/*
+        ---------- 用户事实陈述（用户自己填写） ----------
+        与上面两个区域严格独立：
+          · 内容由用户手输，不是凭证提取结果，也不叫「已确认事实」；
+          · 自己的 useState 状态，不读写 4.2a 的 fixture 与 4.2c 的 mock 结果；
+          · 不进入 AnalysisInputResult，不改变 ready / blockers；
+          · 不发请求、不上传文件、不做持久化。
+      */}
+      <UserCaseContextSection />
 
       {/*
         ---------- 阶段 4.2c-2：本地 mock 识别 ----------
