@@ -177,11 +177,26 @@ type FocusTarget =
   | { kind: 'edit'; key: string }
   | { kind: 'progress' };
 
-export default function ExtractionReview() {
+/** 本组件的 props：字段状态由父组件持有，本组件受控。 */
+type ExtractionReviewProps = {
+  /** 当前字段数组（完整）。 */
+  fields: ExtractedField[];
+  /** 写回更新后的完整字段数组。支持函数式更新，行为与原 `useState` 一致。 */
+  onFieldsChange: React.Dispatch<React.SetStateAction<ExtractedField[]>>;
+};
+
+export default function ExtractionReview({
+  fields,
+  onFieldsChange,
+}: ExtractionReviewProps) {
   const meta = getFixtureMeta();
 
-  /** 字段状态。初始值与「重置为样例」都通过 createInitialFields() 取得全新副本。 */
-  const [fields, setFields] = useState<ExtractedField[]>(() => createInitialFields());
+  /**
+   * 字段状态由 `page.tsx` 持有，这里只读取 props，不再自建 state。
+   *
+   * 这样阶段 5 的离线准备模块才能在同一层读到**真实**的字段状态，
+   * 而不必复制一份可能过期的副本。
+   */
   /** 当前处于编辑态的字段 key；同一时间只编辑一个字段。 */
   const [editingKey, setEditingKey] = useState<string | null>(null);
   /** 编辑态下的草稿文本。取消编辑时直接丢弃，不影响字段状态。 */
@@ -279,11 +294,11 @@ export default function ExtractionReview() {
   /** 更新单个字段（按 key 定位，只替换该字段对象）。 */
   const updateField = useCallback(
     (key: string, patch: Partial<ExtractedField>) => {
-      setFields((previous) =>
+      onFieldsChange((previous) =>
         previous.map((field) => (field.key === key ? { ...field, ...patch } : field)),
       );
     },
-    [],
+    [onFieldsChange],
   );
 
   /**
@@ -460,7 +475,7 @@ export default function ExtractionReview() {
       const original = getFixtureField(field.key);
       if (original === undefined) return;
 
-      setFields((previous) =>
+      onFieldsChange((previous) =>
         previous.map((item) =>
           item.key === field.key ? { ...original, confirmed: false } : item,
         ),
@@ -469,7 +484,7 @@ export default function ExtractionReview() {
       setDraftValue('');
       requestFocus({ kind: 'confirm', key: field.key });
     },
-    [requestFocus],
+    [requestFocus, onFieldsChange],
   );
 
   /**
@@ -477,21 +492,21 @@ export default function ExtractionReview() {
    * 按钮随后变为 disabled，因此焦点移到确认进度，不停留在不可用的按钮上。
    */
   const handleConfirmAll = useCallback(() => {
-    setFields((previous) => previous.map((field) => ({ ...field, confirmed: true })));
+    onFieldsChange((previous) => previous.map((field) => ({ ...field, confirmed: true })));
     setEditingKey(null);
     setDraftValue('');
     requestFocus({ kind: 'progress' });
-  }, [requestFocus]);
+  }, [requestFocus, onFieldsChange]);
 
   /**
    * 重置为样例：取全新副本，全部回到 source 'fixture'、confirmed false 与原始值。
    * 重置按钮本身不会被移除，焦点自然保留在它上面，因此不额外请求焦点。
    */
   const handleReset = useCallback(() => {
-    setFields(createInitialFields());
+    onFieldsChange(createInitialFields());
     setEditingKey(null);
     setDraftValue('');
-  }, []);
+  }, [onFieldsChange]);
 
   const confirmedCount = fields.filter((field) => field.confirmed).length;
   const allConfirmed = confirmedCount === fields.length;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import type {
   DesiredResolution,
@@ -35,8 +35,17 @@ import {
  *   · 不调用模型、不发网络请求、不读环境变量、不写任何存储，
  *     刷新页面即丢失（本轮刻意不做持久化）。
  *
- * 状态完全由本组件的 `useState` 持有，不对外暴露，也不与任何其他区域共享。
+ * 状态由父组件（`page.tsx`）持有，本组件只接收当前值并通过 `onContextChange`
+ * 把更新后的**完整对象**写回，自己不保留副本——避免出现两份可能不一致的 state。
  */
+
+/** 本组件的 props：受控输入。 */
+type UserCaseContextSectionProps = {
+  /** 当前用户陈述（完整对象）。 */
+  context: UserCaseContext;
+  /** 写回更新后的完整对象。支持函数式更新，行为与原 `useState` 一致。 */
+  onContextChange: React.Dispatch<React.SetStateAction<UserCaseContext>>;
+};
 
 /** 单选项的渲染配置，避免两组单选各写一遍重复的 JSX。 */
 type RadioOption<T extends string> = {
@@ -112,9 +121,10 @@ const COUNTER_CLASS = 'mt-1 text-right text-xs text-slate-500';
 const CLEAR_BUTTON_CLASS =
   'field-action-button rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50';
 
-export default function UserCaseContextSection() {
-  const [context, setContext] = useState<UserCaseContext>(EMPTY_USER_CASE_CONTEXT);
-
+export default function UserCaseContextSection({
+  context,
+  onContextChange,
+}: UserCaseContextSectionProps) {
   /**
    * 填写进度。
    *
@@ -128,11 +138,11 @@ export default function UserCaseContextSection() {
    * 保证粘贴超长内容也不会突破字数限制。
    */
   const handleIncidentChange = useCallback((value: string) => {
-    setContext((prev) => ({
+    onContextChange((prev) => ({
       ...prev,
       incidentDescription: value.slice(0, USER_CASE_LIMITS.incidentDescription),
     }));
-  }, []);
+  }, [onContextChange]);
 
   /**
    * 发现问题的时间或阶段：**不设字数上限**（也可能不设日期格式要求），
@@ -140,32 +150,32 @@ export default function UserCaseContextSection() {
    * 这里保留原样输入，只做长度上的温和约束，避免异常长文本撑坏界面。
    */
   const handleDiscoveredChange = useCallback((value: string) => {
-    setContext((prev) => ({ ...prev, issueDiscoveredAt: value.slice(0, 100) }));
-  }, []);
+    onContextChange((prev) => ({ ...prev, issueDiscoveredAt: value.slice(0, 100) }));
+  }, [onContextChange]);
 
   /** 证据材料情况：最多 300 字。 */
   const handleEvidenceChange = useCallback((value: string) => {
-    setContext((prev) => ({
+    onContextChange((prev) => ({
       ...prev,
       evidenceNotes: value.slice(0, USER_CASE_LIMITS.evidenceNotes),
     }));
-  }, []);
+  }, [onContextChange]);
 
   /** 商家回应摘要：仅在「已回应」时才有意义。 */
   const handleMerchantSummaryChange = useCallback((value: string) => {
-    setContext((prev) => ({
+    onContextChange((prev) => ({
       ...prev,
       merchantResponseSummary: value.slice(0, USER_CASE_LIMITS.merchantResponseSummary),
     }));
-  }, []);
+  }, [onContextChange]);
 
   /** 其他处理诉求：仅在选了「其他」时才有意义。 */
   const handleOtherResolutionChange = useCallback((value: string) => {
-    setContext((prev) => ({
+    onContextChange((prev) => ({
       ...prev,
       desiredResolutionOther: value.slice(0, USER_CASE_LIMITS.desiredResolutionOther),
     }));
-  }, []);
+  }, [onContextChange]);
 
   /**
    * 切换商家回应状态。
@@ -174,12 +184,12 @@ export default function UserCaseContextSection() {
    * 隐性状态：用户看不到那个输入框，却还在计数里。清空让界面与数据一致。
    */
   const handleMerchantStatusChange = useCallback((next: MerchantResponseStatus) => {
-    setContext((prev) => ({
+    onContextChange((prev) => ({
       ...prev,
       merchantResponseStatus: next,
       merchantResponseSummary: next === 'responded' ? prev.merchantResponseSummary : '',
     }));
-  }, []);
+  }, [onContextChange]);
 
   /**
    * 切换处理诉求。
@@ -187,17 +197,17 @@ export default function UserCaseContextSection() {
    * 同理：离开「其他」时清空补充说明，避免隐藏字段继续计入填写进度。
    */
   const handleResolutionChange = useCallback((next: DesiredResolution) => {
-    setContext((prev) => ({
+    onContextChange((prev) => ({
       ...prev,
       desiredResolution: next,
       desiredResolutionOther: next === 'other' ? prev.desiredResolutionOther : '',
     }));
-  }, []);
+  }, [onContextChange]);
 
   /** 清空全部本地字段，恢复到初始的「尚未填写」。不影响其他任何区域。 */
   const handleClear = useCallback(() => {
-    setContext(EMPTY_USER_CASE_CONTEXT);
-  }, []);
+    onContextChange(EMPTY_USER_CASE_CONTEXT);
+  }, [onContextChange]);
 
   const showMerchantSummary = context.merchantResponseStatus === 'responded';
   const showOtherResolution = context.desiredResolution === 'other';

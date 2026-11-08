@@ -1,6 +1,11 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
+
+import { createInitialFields } from '@/lib/extraction-fixture';
+import type { ExtractedField } from '@/types/extraction';
+import type { UserCaseContext } from '@/types/user-case';
+import { EMPTY_USER_CASE_CONTEXT } from '@/types/user-case';
 
 import EvidencePreview from './evidence-preview';
 import ExtractionReview from './extraction-review';
@@ -57,6 +62,32 @@ const PLACEHOLDER_CARDS: PlaceholderCard[] = [
  * 卡片本身仍然是**非交互静态占位**：没有点击行为、没有路由、没有上传、没有 API 调用。
  */
 export default function HomePage() {
+  /**
+   * 页面级业务状态（阶段 5 前置：状态提升）。
+   *
+   * 这两份 state 原本各自留在子组件内部，外部看不到。提升到这里是为了让
+   * 同一层的后续消费者（如离线分析准备）能读到**真实**的当前状态，
+   * 而不必复制一份可能过期的副本。
+   *
+   * 说明：
+   *   · 这里持有的是**唯一一份**业务状态，子组件受控，不再自建副本；
+   *   · 4.2c 的 mock 识别结果仍完全留在 `MockExtractionPreview` 内部，
+   *     与本状态互不读写；
+   *   · 纯内存，不持久化、不发请求、不调用模型。
+   */
+
+  /**
+   * 凭证字段（4.2a）。
+   *
+   * 初始值用 `createInitialFields()` 而非直接引用 `EVIDENCE_FIXTURE.fields`：
+   * 它每次返回与常量完全脱离的新数组与新对象，避免界面编辑污染共享样例。
+   */
+  const [fields, setFields] = useState<ExtractedField[]>(() => createInitialFields());
+
+  /** 用户事实陈述（4.2e）。初始为全部空白，与凭证字段完全独立。 */
+  const [userContext, setUserContext] =
+    useState<UserCaseContext>(EMPTY_USER_CASE_CONTEXT);
+
   /** 每个卡片元素到其待处理 rAF 句柄的映射，用于 pointermove 合并节流 */
   const rafIdsRef = useRef<Map<HTMLElement, number>>(new Map());
 
@@ -147,7 +178,7 @@ export default function HomePage() {
       <EvidencePreview />
 
       {/* ---------- 阶段 4.2a：fixture 样例核对（固定样例，未调用模型） ---------- */}
-      <ExtractionReview />
+      <ExtractionReview fields={fields} onFieldsChange={setFields} />
 
       {/*
         ---------- 用户事实陈述（用户自己填写） ----------
@@ -157,7 +188,10 @@ export default function HomePage() {
           · 不进入 AnalysisInputResult，不改变 ready / blockers；
           · 不发请求、不上传文件、不做持久化。
       */}
-      <UserCaseContextSection />
+      <UserCaseContextSection
+        context={userContext}
+        onContextChange={setUserContext}
+      />
 
       {/*
         ---------- 阶段 4.2c-2：本地 mock 识别 ----------
