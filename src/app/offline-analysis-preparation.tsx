@@ -118,6 +118,93 @@ function buildUserCaseRows(context: UserCaseContext): UserCaseRow[] {
   ];
 }
 
+/** 字段明细的三种状态。 */
+type UserCaseFieldState =
+  /** 用户已填写（文本非空白，或已选中某一项） */
+  | 'filled'
+  /** 该字段当前没有填写入口（条件字段未激活），不算用户漏填 */
+  | 'not_applicable'
+  /** 有填写入口但内容空白 */
+  | 'empty';
+
+/** 一条字段明细。 */
+type UserCaseFieldDetail = {
+  /** 字段中文标签 */
+  label: string;
+  /** 填写状态 */
+  state: UserCaseFieldState;
+  /** 已填写时的字符数（仅文本字段有意义；单选项为 null） */
+  charCount: number | null;
+};
+
+/** 文本字段配置：键名限定为 `UserCaseContext` 的文本键，避免写错字段名。 */
+type UserCaseTextFieldKey =
+  | 'incidentDescription'
+  | 'issueDiscoveredAt'
+  | 'merchantResponseSummary'
+  | 'desiredResolutionOther'
+  | 'evidenceNotes';
+
+/** 静态字段配置：七项字段的中文标签与所处形态。不含任何规则或判断。 */
+const USER_CASE_FIELD_CONFIG: ReadonlyArray<{
+  label: string;
+  /** 文本字段取哪个键 */
+  textKey?: UserCaseTextFieldKey;
+  /** 条件字段的激活判断；返回 false 时该字段「当前不适用」 */
+  isActive?: (context: UserCaseContext) => boolean;
+}> = [
+  { label: '事情经过', textKey: 'incidentDescription' },
+  { label: '发现问题的时间或阶段', textKey: 'issueDiscoveredAt' },
+  // 单选项：只关心「选了没有」，不显示内部枚举值
+  { label: '商家是否回应' },
+  {
+    label: '商家回应摘要',
+    textKey: 'merchantResponseSummary',
+    isActive: (context) => context.merchantResponseStatus === 'responded',
+  },
+  // 单选项：同上
+  { label: '希望如何处理' },
+  {
+    label: '其他处理诉求',
+    textKey: 'desiredResolutionOther',
+    isActive: (context) => context.desiredResolution === 'other',
+  },
+  { label: '证据材料情况', textKey: 'evidenceNotes' },
+];
+
+/** 单选字段的选中判断，与配置中的两个单选项一一对应。 */
+function isSingleChoiceFilled(label: string, context: UserCaseContext): boolean {
+  if (label === '商家是否回应') return context.merchantResponseStatus !== '';
+  if (label === '希望如何处理') return context.desiredResolution !== '';
+  return false;
+}
+
+/**
+ * 汇总七个字段的**填写状态明细**（只给状态与字数，不回显原文）。
+ *
+ * 语义说明：
+ *   · 空白字符串（含纯空白）一律视为「尚未填写」；
+ *   · 条件字段未激活时标记为「当前不适用」，**不**算作用户漏填；
+ *   · 只读取 `context`，不修改它，也不做任何完整性/合法性判断。
+ *
+ * 纯函数：不修改入参，无副作用。
+ */
+function buildUserCaseFieldDetails(context: UserCaseContext): UserCaseFieldDetail[] {
+  return USER_CASE_FIELD_CONFIG.map((field) => {
+    if (field.isActive !== undefined && !field.isActive(context)) {
+      return { label: field.label, state: 'not_applicable', charCount: null };
+    }
+    if (field.textKey === undefined) {
+      const filled = isSingleChoiceFilled(field.label, context);
+      return { label: field.label, state: filled ? 'filled' : 'empty', charCount: null };
+    }
+    const raw = context[field.textKey];
+    return raw.trim() === ''
+      ? { label: field.label, state: 'empty', charCount: null }
+      : { label: field.label, state: 'filled', charCount: raw.trim().length };
+  });
+}
+
 /** 一个小节：标题 + 说明 + 内容。 */
 function SubBlock({
   heading,
@@ -176,6 +263,17 @@ export default function OfflineAnalysisPreparation({
    * 仍然存在、仍由 4.2d 使用，本模块只是不重复调用。
    */
   const userCaseRows = useMemo(() => buildUserCaseRows(userContext), [userContext]);
+
+  /**
+   * 七个字段的填写状态明细（只给状态与字数，不回显原文）。
+   *
+   * 与上面的 `userCaseRows`（回显原文）互补：明细回答「哪几项填了、写了多少字」，
+   * 原文回答「具体写了什么」。两者都由同一个 `userContext` 派生，不新增状态。
+   */
+  const userCaseFieldDetails = useMemo(
+    () => buildUserCaseFieldDetails(userContext),
+    [userContext],
+  );
 
   /**
    * 三项状态语义：
@@ -311,6 +409,33 @@ export default function OfflineAnalysisPreparation({
         ) : (
           <p className={EMPTY_TEXT_CLASS}>暂未填写用户陈述</p>
         )}
+
+        {/* ---------- 2.1 字段填写状态明细 ---------- */}
+        {/*
+          只显示「哪几项填了 / 写了多少字」，不回显原文——原文已在上面的列表里。
+          这里也不新增任何「完整 / 齐全」之类的评级：
+          只如实标出每一项是已填写、尚未填写，还是当前不适用。
+        */}
+        <div className="mt-5">
+          <h4 className="text-sm font-medium text-slate-800">字段填写状态</h4>
+          <p className={BLOCK_NOTE_CLASS}>
+            只标注每一项是否填写，不代表内容完整或事实已被独立验证。
+          </p>
+
+          <ul className="mt-2 space-y-1">
+            {userCaseFieldDetails.map((detail) => (
+              <li key={detail.label} className={ROW_CLASS}>
+                <span className={ROW_LABEL_CLASS}>{detail.label}</span>
+                <span className={ROW_VALUE_CLASS}>
+                  {detail.state === 'filled' ? '已填写' : detail.state === 'empty' ? '尚未填写' : '当前不适用'}
+                  {detail.state === 'filled' && detail.charCount !== null ? (
+                    <span className="text-xs text-slate-500"> （{detail.charCount} 字）</span>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       {/* ---------- 3. 当前输入缺口 ---------- */}
