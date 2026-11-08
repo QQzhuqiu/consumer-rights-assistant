@@ -10,6 +10,7 @@ import { EMPTY_USER_CASE_CONTEXT } from '@/types/user-case';
 import EvidencePreview from './evidence-preview';
 import ExtractionReview from './extraction-review';
 import MockExtractionPreview from './mock-extraction-preview';
+import OfflineAnalysisPreparation from './offline-analysis-preparation';
 import UserCaseContextSection from './user-case-context';
 
 type PlaceholderCard = {
@@ -192,6 +193,17 @@ export default function HomePage() {
         context={userContext}
         onContextChange={setUserContext}
       />
+
+      {/*
+        ---------- 阶段 5：离线分析准备（本地整理） ----------
+        只读消费者，不持有 state、不写回任何东西：
+          · 读取上面两处已提升到页面的**同一份** state，不复制、不留快照；
+          · 完整性判定复用 analysis-input.ts 的既有函数，不另写规则；
+          · 用户陈述不进入 AnalysisInputResult，也不混入凭证字段的 blockers；
+          · 拿不到 4.2c 的 mock 结果，因此 mock 不参与任何计算；
+          · 不发请求、不调模型、不上传、不持久化、不生成权益或法律结论。
+      */}
+      <OfflineAnalysisPreparation fields={fields} userContext={userContext} />
 
       {/*
         ---------- 阶段 4.2c-2：本地 mock 识别 ----------
