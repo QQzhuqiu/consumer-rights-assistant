@@ -186,3 +186,55 @@ body {
     box-shadow: none;
   }
 }
+
+/* ==========================================================================
+ * AI 摘要确认弹窗：视口高度约束与弹窗内部滚动
+ *
+ * 为什么这两条必须放在全局样式里，而不是只用 Tailwind 工具类：
+ *   · 高度要「先 100vh 回退、再用 100dvh 覆盖」。同一属性连续写两次，
+ *     不支持 dvh 的浏览器会保留第一条、丢弃第二条；Tailwind 的任意值
+ *     一次只能生成一条声明，表达不了这种回退对。
+ *   · 移动端安全区需要 max() 参与内边距计算，同样无法用单个工具类表达。
+ *
+ * 设计约束：
+ *   · 只用 max() 抬升「最小留白」，绝不用 max() 去取较大的高度（那会造成溢出）；
+ *   · 不用 overflow: hidden 裁掉内容；长内容在弹窗内部滚动，而不是被隐藏；
+ *   · 不使用 position: sticky 的魔法数值，纵向分区由组件里的 flex 结构表达。
+ * ========================================================================== */
+
+/*
+ * 视口盒：高度受当前可视视口约束。
+ * 100dvh 会随移动端地址栏收起/展开变化，避免底部操作被地址栏挡住；
+ * 100vh 是给不支持 dvh 的旧浏览器的回退值。
+ */
+.dialog-viewport {
+  height: 100vh;
+  height: 100dvh;
+
+  /* 安全区：刘海与底部指示条所在的区域不参与可点区域，避免遮挡标题或按钮 */
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+}
+
+/* 桌面端留白稍大一些，与既有卡片间距保持一致 */
+@media (min-width: 640px) {
+  .dialog-viewport {
+    padding: 1rem;
+  }
+}
+
+/*
+ * 弹窗内部唯一的滚动区。
+ * min-height: 0 是必需的：flex 子项默认 min-height: auto 会撑破容器，
+ * 导致「弹窗比视口高、底部按钮被顶出可视范围」。
+ * overscroll-behavior: contain 阻止滚到边界后把滚动传递给背景页面。
+ */
+.dialog-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* iOS 惯性滚动（新版本已默认开启，保留以兼容旧 WebView） */
+  -webkit-overflow-scrolling: touch;
+}

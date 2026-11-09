@@ -7,6 +7,7 @@ import type { ExtractedField } from '@/types/extraction';
 import type { UserCaseContext } from '@/types/user-case';
 import { EMPTY_USER_CASE_CONTEXT } from '@/types/user-case';
 
+import AISummarySection from './ai-summary-result';
 import EvidencePreview from './evidence-preview';
 import ExtractionReview from './extraction-review';
 import FactTimeline from './fact-timeline';
@@ -225,6 +226,18 @@ export default function HomePage() {
           · 不发请求、不上传、不调模型、不写存储。
       */}
       <MaterialChecklist userContext={userContext} />
+
+      {/*
+        ---------- 阶段 7：AI 事实整理摘要（真实模型调用） ----------
+        本页唯一会向外部服务发送数据的地方，因此约束最严：
+          · 只读上面两处已提升到页面的**同一份** state，绝不写回；
+          · 页面加载、字段变更都不会触发请求；
+          · 必须用户主动点击、并在确认界面逐项确认后才会调用服务端接口；
+          · 服务端接口 /api/summarize 持有密钥与模型名，客户端无从指定；
+          · 结果只存在该组件 state，刷新即清空，不做持久化；
+          · 输出仅用于信息整理，不作法律判断，也不代替用户确认任何字段。
+      */}
+      <AISummarySection fields={fields} userContext={userContext} />
 
       {/*
         ---------- 阶段 4.2c-2：本地 mock 识别 ----------
