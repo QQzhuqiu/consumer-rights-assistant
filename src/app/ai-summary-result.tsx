@@ -30,7 +30,8 @@
  *   · 不把结果称为「法律分析」或「权益分析」。
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import {
   AI_SUMMARY_FALLBACK_MESSAGE,
@@ -150,6 +151,12 @@ export default function AISummarySection({
 }: AISummarySectionProps) {
   /** 确认对话框是否打开。 */
   const [dialogOpen, setDialogOpen] = useState(false);
+  /** Portal 只在客户端挂载后启用，避免服务端与客户端首帧不一致。 */
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
   /** 是否正在请求。 */
   const [loading, setLoading] = useState(false);
   /** 结果：只存在于本组件，刷新即清空。 */
@@ -312,8 +319,9 @@ export default function AISummarySection({
             订单号不发送，用户陈述需要你自己勾选，未确认的字段不会发送。
           </p>
           {/*
-            主操作按钮：沿用项目既有的主操作配方（bg-slate-800 + 白色文字），
-            与 extraction-review / mock-extraction-preview 里的主按钮同一套语言。
+            主操作按钮：使用 primary 作为「主要操作」的唯一强调色，
+            与当前步骤导航、确认发送按钮共用同一套强调语义；
+            其余字段级按钮仍沿用既有的 bg-slate-800 中性主按钮配方，以示层级差异。
             这里只做了三件事：加深底色、加大点击区域（px-4 py-2.5）、提高字重（font-semibold）。
             「重新生成」使用完全相同的配方，保证两个主操作视觉一致。
           */}
@@ -321,7 +329,7 @@ export default function AISummarySection({
             type="button"
             onClick={() => setDialogOpen(true)}
             disabled={loading}
-            className="field-action-button mt-3 rounded-md bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300"
+            className="field-action-button mt-3 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300"
           >
             查看发送内容并生成
           </button>
@@ -441,7 +449,7 @@ export default function AISummarySection({
             type="button"
             onClick={() => setDialogOpen(true)}
             disabled={loading}
-            className="field-action-button mt-3 rounded-md bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300"
+            className="field-action-button mt-3 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 disabled:hover:bg-slate-300"
           >
             重新生成
           </button>
@@ -461,17 +469,20 @@ export default function AISummarySection({
       </p>
 
       {/* ---------- 确认对话框 ---------- */}
-      {dialogOpen ? (
-        <AISummaryConfirmDialog
-          confirmedFields={confirmedFields}
-          userContext={userContext}
-          selectedKeys={selectedKeys}
-          onToggleKey={toggleKey}
-          onCancel={handleCancel}
-          onConfirm={handleConfirm}
-          loading={loading}
-        />
-      ) : null}
+      {dialogOpen && portalReady && typeof document !== 'undefined'
+        ? createPortal(
+            <AISummaryConfirmDialog
+              confirmedFields={confirmedFields}
+              userContext={userContext}
+              selectedKeys={selectedKeys}
+              onToggleKey={toggleKey}
+              onCancel={handleCancel}
+              onConfirm={handleConfirm}
+              loading={loading}
+            />,
+            document.body,
+          )
+        : null}
     </section>
   );
 }

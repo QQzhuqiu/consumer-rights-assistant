@@ -349,7 +349,7 @@ export default function AISummaryConfirmDialog({
                 type="button"
                 onClick={onConfirm}
                 disabled={loading}
-                className="field-action-button rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:hover:bg-slate-400"
+                className="field-action-button rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-slate-400 disabled:hover:bg-slate-400"
               >
                 {loading ? '正在生成…' : '确认发送'}
               </button>

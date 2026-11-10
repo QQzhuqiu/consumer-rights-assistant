@@ -15,6 +15,41 @@
   --ease-spring-soft: cubic-bezier(0.34, 1.36, 0.64, 1);
   /* 离开：无过冲，柔顺回落 */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /*
+   * 海洋色系统：珍珠与贝壳的视觉语言
+   *
+   * 设计原则：
+   *   · 深海背景营造专业沉稳的氛围；
+   *   · 工作区如珍珠般从深海中浮现；
+   *   · 内容表面保持纯白，清爽易读；
+   *   · 主海蓝用于功能节点和关键操作。
+   *
+   * 色阶定义：
+   *   · ocean-deep        : 深海背景（#0B2442）
+   *   · ocean-primary     : 主海蓝（#1F6F8B）
+   *   · ocean-primary-hover: hover 时的深海蓝（#165670）
+   *   · ocean-soft        : 浅青色（#E0F2F7）
+   *   · ocean-border      : 海岸线边框（#7CC7C9）
+   *   · ocean-pearl       : 珍珠白（#F8FDFD）
+   *   · ocean-pearl-light : 珍珠高光（#FFFDF5）
+   *   · wipe-base         : 转场水波底色（#7CC7C9）
+   */
+  --color-ocean-deep: #0B2442;
+  --color-ocean-primary: #1F6F8B;
+  --color-ocean-primary-hover: #165670;
+  --color-ocean-soft: #E0F2F7;
+  --color-ocean-border: #7CC7C9;
+  --color-ocean-pearl: #F8FDFD;
+  --color-ocean-pearl-light: #FFFDF5;
+  --color-wipe-base: #7CC7C9;
+
+  /* 工作区色系保留（向后兼容） */
+  --color-primary: #1F6F8B;
+  --color-primary-hover: #165670;
+  --color-primary-soft: #E0F2F7;
+  --color-primary-dim: rgb(124 199 201 / 0.1);
+  --color-primary-border: #7CC7C9;
 }
 
 html {
@@ -147,7 +182,7 @@ body {
 
 /* 键盘焦点：无论何种指针设备都必须清晰可见 */
 .field-action-button:focus-visible {
-  outline: 2px solid rgb(37 99 235); /* blue-600 */
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
@@ -237,4 +272,613 @@ body {
   overscroll-behavior: contain;
   /* iOS 惯性滚动（新版本已默认开启，保留以兼容旧 WebView） */
   -webkit-overflow-scrolling: touch;
+}
+
+/* ==========================================================================
+ * 当前工作区的容器
+ *
+ * 作用只有两个，都很克制：
+ *   1. 承托内部各区块原有的白色卡片，建立「页面浅底 → 工作区近白 → 区块白卡」
+ *      三层关系，让内容看起来在同一个工作面上，而不是散落的独立卡片；
+ *   2. 提供 position: relative 作为转场覆盖层的定位基准。
+ *
+ * 这里**不使用 overflow: hidden**：工作区内部包含 AI 确认弹窗（position: fixed），
+ * 给可能成为其后代包含块的祖先加裁剪是有风险的做法。覆盖层用 inset-0 定死在
+ * 工作区盒子内、并带同样的圆角，本身就不可能溢出，无需依赖裁剪。
+ *
+ * 第一条子项不需要顶部外边距：容器的内边距已经提供了留白，
+ * 若保留区块自带的 mt-8 会在顶部多出 32px，看起来像「内容没对齐」。
+ * ========================================================================== */
+
+.workspace-shell > [data-step-panel] > :first-child {
+  margin-top: 0;
+}
+
+/* ==========================================================================
+ * 四步流程：工作区「圆形揭示」转场
+ *
+ * 结构与状态完全不动，只在切换的瞬间叠一层一次性覆盖层：
+ *   · 四个面板**始终挂载**，非当前步骤由 `hidden` 置为 display:none；
+ *   · 覆盖层 pointer-events: none —— 绝不拦截点击、不参与布局、不进无障碍树
+ *     （另有 aria-hidden="true"）；
+ *   · 覆盖层由 page.tsx 按需挂载，动画结束即卸载，不留常驻节点。
+ *
+ * 视觉设计：
+ *   底色使用 --color-wipe-base（blue-500 #3b82f6），起始 opacity 100%，
+ *   随圆圈扩散逐渐淡出至 0。观感是一团清晰的蓝色从点击处晕开并消失，
+ *   同时露出已切换好的新内容，而不是突然替换。
+ *
+ * 坐标与半径（由 page.tsx 在切换后测量工作区、换算成局部坐标后写入）：
+ *   · --wipe-x / --wipe-y 是工作区**局部坐标**，因此与页面滚动位置无关；
+ *   · --wipe-r 取「起点到工作区四角的最远距离」，保证圆圈覆盖整个工作区边界，
+ *     包括切换后变高的情况（半径按切换后的实测高度计算）。
+ *
+ * 首帧不闪：覆盖层基础样式带 opacity-0；动画由 keyframes 从 0% 接管
+ * （animations 的优先级高于普通声明），因此「类名尚未加上」的那一帧是隐形的。
+ *
+ * 降级：若浏览器不支持 circle() 形式的 clip-path，page.tsx 会改加
+ * .workspace-wipe-fade —— 200ms 的浅色遮罩淡出 + 轻微位移，同样是一次性、
+ * 同样不拦截交互。判断走 CSS.supports，不做特性嗅探以外的猜测。
+ * ========================================================================== */
+
+@keyframes workspace-wipe {
+  0% {
+    clip-path: circle(0px at var(--wipe-x, 0px) var(--wipe-y, 0px));
+    opacity: 1;
+  }
+  100% {
+    clip-path: circle(var(--wipe-r, 0px) at var(--wipe-x, 0px) var(--wipe-y, 0px));
+    opacity: 0;
+  }
+}
+
+.workspace-wipe {
+  /* 320ms 让扩散过程更平滑可见；ease-out 让扩散前快后慢，收尾更干净 */
+  animation: workspace-wipe 320ms var(--ease-out-soft) both;
+}
+
+@keyframes workspace-wipe-fade {
+  0% {
+    opacity: 0.9;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+.workspace-wipe-fade {
+  animation: workspace-wipe-fade 200ms var(--ease-out-soft) both;
+}
+
+/* 减少动画偏好：不播放任何转场，直接切换（JS 也不会挂载覆盖层，这里是双保险） */
+@media (prefers-reduced-motion: reduce) {
+  .workspace-wipe,
+  .workspace-wipe-fade {
+    animation: none;
+    opacity: 0;
+    clip-path: none;
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+ * 工作区与流程入口：浅海工作台与珍珠路径
+ * ========================================================================== */
+.app-shell {
+  background: #0b2442;
+}
+
+.workspace-view {
+  color: #173b4a;
+  animation: workspace-view-enter 230ms var(--ease-out-soft) both;
+}
+
+.workspace-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.25rem;
+}
+
+.workspace-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgb(151 190 191 / 0.75);
+  border-radius: 999px;
+  background: rgb(247 251 250 / 0.92);
+  padding: 0.45rem 0.8rem;
+  color: #1a5061;
+  font-size: 0.82rem;
+  font-weight: 650;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.workspace-back-button:hover,
+.workspace-back-button:focus-visible {
+  border-color: #4c969b;
+  background: #ffffff;
+  color: #0b2442;
+}
+
+.workspace-back-button:focus-visible {
+  outline: 2px solid #2f858c;
+  outline-offset: 3px;
+}
+
+.workspace-escape-hint {
+  color: rgb(225 241 240 / 0.8);
+  font-size: 0.72rem;
+}
+
+.workspace-heading {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  overflow: hidden;
+  margin-top: 1.25rem;
+  border-bottom: 1px solid rgb(151 190 191 / 0.35);
+  padding: 0.25rem 0 1.1rem;
+}
+
+.workspace-heading-mark {
+  width: 0.3rem;
+  min-height: 3.7rem;
+  flex: 0 0 0.3rem;
+  border-radius: 999px;
+  background: #62b1b1;
+}
+
+.workspace-eyebrow {
+  color: #67a6a6;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.workspace-heading h1 {
+  margin-top: 0.25rem;
+  color: #f6fbfa;
+  font-size: clamp(1.45rem, 2.6vw, 2.1rem);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.workspace-heading p:last-child {
+  max-width: 46rem;
+  margin-top: 0.4rem;
+  color: rgb(219 237 235 / 0.8);
+  font-size: 0.85rem;
+  line-height: 1.65;
+}
+
+.workspace-heading-wave {
+  position: absolute;
+  right: 2%;
+  bottom: 0.7rem;
+  width: 8rem;
+  height: 2rem;
+  border-top: 1px solid rgb(98 177 177 / 0.38);
+  border-radius: 50%;
+  transform: rotate(-5deg);
+}
+
+.workspace-step-nav {
+  position: relative;
+  border-color: #b4d1d0;
+  background: rgb(247 251 250 / 0.94);
+}
+
+.workspace-step-nav ol {
+  position: relative;
+}
+
+.workspace-step-nav ol::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 7%;
+  left: 7%;
+  border-top: 1px dashed #9fc5c4;
+  transform: translateY(-50%);
+}
+
+.workspace-step-nav li {
+  position: relative;
+  z-index: 1;
+}
+
+.workspace-shell {
+  border-color: #b4d1d0;
+  background: #fffefa;
+  box-shadow: 0 12px 28px rgb(7 48 62 / 0.12);
+  animation: workspace-surface-enter 250ms var(--ease-out-soft) both;
+}
+
+.workspace-shell > [data-step-panel] > :first-child {
+  margin-top: 0;
+}
+
+.workspace-shell > [data-step-panel] > section {
+  border-color: #d2e0de;
+  background: #fffefa;
+}
+
+.workspace-notice {
+  border-color: #e5c987;
+  background: #fff9e8;
+}
+
+.workspace-step-actions {
+  color: #46656c;
+}
+
+.workspace-footer {
+  border-color: rgb(151 190 191 / 0.35);
+  color: rgb(219 237 235 / 0.72);
+}
+
+@keyframes workspace-view-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes workspace-surface-enter {
+  from { opacity: 0.7; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+ * 流程入口：浅海工作台与珍珠路径
+ * ========================================================================== */
+.flow-home-scene {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100vh - 4rem);
+  overflow: hidden;
+  border: 1px solid rgb(180 207 209 / 0.72);
+  border-radius: 24px;
+  background: #f4f8f7;
+  color: #173b4a;
+  padding: clamp(2rem, 5vw, 4.5rem) clamp(1rem, 5vw, 4.5rem) 1.5rem;
+}
+
+.flow-home-header {
+  position: relative;
+  z-index: 2;
+  max-width: 44rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.flow-home-kicker {
+  color: #237b82;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.flow-home-header h1 {
+  margin-top: 0.75rem;
+  color: #123c4d;
+  font-size: clamp(1.8rem, 3.5vw, 3.25rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.flow-home-intro {
+  max-width: 36rem;
+  margin: 1rem auto 0;
+  color: #3f626b;
+  font-size: clamp(0.95rem, 1.7vw, 1.1rem);
+  line-height: 1.8;
+}
+
+.flow-map {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 58rem);
+  height: 35rem;
+  margin: 1.25rem auto 0;
+}
+
+.flow-map-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  display: grid;
+  gap: 0.2rem;
+  color: #719096;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+  transform: translate(-50%, 6.7rem);
+}
+
+.flow-paths {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  color: #5aaab0;
+}
+
+.flow-paths path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-dasharray: 7 9;
+  stroke-linecap: round;
+  marker-end: url(#flow-arrow);
+  opacity: 0.72;
+}
+
+.flow-paths marker path {
+  fill: currentColor;
+  stroke: none;
+}
+
+.flow-center-pearl {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  width: 10.5rem;
+  height: 10.5rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #b9d6d4;
+  border-radius: 50%;
+  background: #fffefa;
+  box-shadow: 0 16px 30px rgb(29 83 91 / 0.14), inset 10px 8px 0 rgb(255 255 255 / 0.9);
+  color: #174758;
+  transform: translate(-50%, -50%);
+  transition: box-shadow 180ms ease, transform 180ms ease;
+}
+
+.flow-center-pearl:hover,
+.flow-center-pearl:focus-visible {
+  box-shadow: 0 20px 36px rgb(29 83 91 / 0.2), 0 0 0 5px rgb(91 171 175 / 0.2), inset 10px 8px 0 rgb(255 255 255 / 0.9);
+  transform: translate(-50%, -50%) scale(1.03);
+}
+
+.flow-center-pearl:focus-visible,
+.flow-node-button:focus-visible {
+  outline: 3px solid #277f87;
+  outline-offset: 4px;
+}
+
+.flow-pearl-shine {
+  position: absolute;
+  top: 1.2rem;
+  left: 1.8rem;
+  width: 2.5rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.9);
+  transform: rotate(-25deg);
+}
+
+.flow-center-mark {
+  position: relative;
+  color: #2b8b91;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.flow-center-title {
+  position: relative;
+  margin-top: 0.3rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.flow-center-subtitle {
+  position: relative;
+  margin-top: 0.25rem;
+  color: #64828a;
+  font-size: 0.72rem;
+}
+
+.flow-node-list {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-node {
+  position: absolute;
+  width: min(13.5rem, 29%);
+}
+
+.flow-node-evidence { top: 16%; left: 5%; }
+.flow-node-fields { top: 15%; right: 5%; }
+.flow-node-context { right: 5%; bottom: 13%; }
+.flow-node-result { bottom: 10%; left: 5%; }
+
+.flow-node-button {
+  display: flex;
+  width: 100%;
+  min-height: 5.75rem;
+  align-items: center;
+  gap: 0.8rem;
+  border: 1px solid #9fc6c6;
+  border-radius: 1.2rem;
+  background: #e6f2f0;
+  padding: 0.9rem 1rem;
+  color: #194b5a;
+  text-align: left;
+  box-shadow: 0 9px 20px rgb(39 104 111 / 0.09);
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.flow-node-button:hover,
+.flow-node-button:focus-visible {
+  border-color: #3f969b;
+  background: #f8fcfa;
+  box-shadow: 0 13px 24px rgb(39 104 111 / 0.15);
+  transform: translateY(-3px);
+}
+
+.flow-node-index {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  place-items: center;
+  border: 1px solid #78b8b7;
+  border-radius: 50%;
+  color: #227b82;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.flow-node-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.flow-node-label {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.flow-node-description {
+  color: #58757c;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.flow-node-arrow {
+  margin-left: auto;
+  color: #348b91;
+  font-size: 1.25rem;
+}
+
+.flow-home-footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  gap: 0.65rem;
+  color: #5f7d83;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.shell-background {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  color: #78aeb0;
+  pointer-events: none;
+}
+
+.shell-outline,
+.shell-rib,
+.shell-wave {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.shell-outline { stroke-width: 2.2; opacity: 0.4; }
+.shell-rib { stroke-width: 1.4; opacity: 0.26; }
+.shell-wave { stroke-width: 1.5; opacity: 0.24; }
+.shell-wave-light { opacity: 0.16; }
+
+@media (max-width: 767px) {
+  .flow-home-scene {
+    min-height: calc(100vh - 2rem);
+    border-radius: 18px;
+    padding: 2.25rem 1rem 1.25rem;
+  }
+
+  .flow-home-header h1 { font-size: 1.85rem; }
+  .flow-home-intro { max-width: 22rem; font-size: 0.9rem; }
+
+  .flow-map {
+    height: auto;
+    margin-top: 2rem;
+    padding: 0 0 0 1.5rem;
+  }
+
+  .flow-map-label { display: none; }
+
+  .flow-paths {
+    top: 4.8rem;
+    left: 0.5rem;
+    width: 1.5rem;
+    height: calc(100% - 9.2rem);
+  }
+
+  .flow-paths {
+    width: 1px;
+    border-left: 2px dashed #5aaab0;
+  }
+  .flow-paths path { display: none; }
+
+  .flow-center-pearl {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: 8.75rem;
+    height: 8.75rem;
+    margin: 0 auto 2.25rem;
+    transform: none;
+  }
+
+  .flow-center-pearl:hover,
+  .flow-center-pearl:focus-visible { transform: scale(1.02); }
+
+  .flow-node-list {
+    position: relative;
+    inset: auto;
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .flow-node,
+  .flow-node-evidence,
+  .flow-node-fields,
+  .flow-node-context,
+  .flow-node-result {
+    position: relative;
+    inset: auto;
+    width: 100%;
+  }
+
+  .flow-node-button { min-height: 4.6rem; border-radius: 1rem; }
+  .flow-node-label { font-size: 0.95rem; }
+  .flow-node-description { font-size: 0.74rem; }
+
+  .flow-home-footer {
+    flex-wrap: wrap;
+    max-width: 20rem;
+    margin: 2rem auto 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-center-pearl,
+  .flow-node-button {
+    transition: none;
+  }
 }
